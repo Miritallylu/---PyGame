@@ -1,0 +1,2383 @@
+import pygame  #импорт необходимых библиотек
+from random import *
+import random
+import pygame.sprite
+import os
+import re
+
+#значение необходимых переменных
+quest = True
+history = False
+
+#установка размера окна игры
+screen = pygame.display.set_mode((800, 800))
+
+#переменные для осуществления прыжка
+jump = False
+jump_count = 30
+animation_speed = 100
+animation_time = pygame.time.get_ticks()
+current_frame = 0
+
+#переменные для последующей установки частоты обновления кадров в игре и работы щита
+clock = pygame.time.Clock()
+pygame.init()
+skin = True
+start_time = pygame.time.get_ticks()
+timer_running = True
+#необходимые переменные для рекорда
+score = 0
+score_increment = 1
+player_speed = 20 # скорость игрока
+y, x = 170, 20 # начальное положение игрока
+#прееменная с текущим вопросом
+current_question = None
+#переменные с необходимыми изображениями
+icon = pygame.image.load('Materials/icon_for_game.png').convert_alpha() # иконка игры
+pause_screen = pygame.image.load("Materials/board.png").convert_alpha()
+pygame.display.set_caption('Quiz Game') #название игры
+pygame.display.set_icon(icon) #установка иконки игры
+
+# фоны
+d = pygame.image.load('Materials/background.png').convert()
+d1 = pygame.image.load('Materials/background_3.png').convert()
+d2 = pygame.image.load('Materials/background_2.png').convert()
+d3 = pygame.image.load('Materials/background.png').convert()
+quiz_screen = pygame.image.load('Materials/quiz_background_1.png').convert()
+empty = pygame.image.load("Materials/empty_background.png").convert_alpha()
+shield_col = pygame.image.load("Materials/shield.png").convert_alpha()
+menu = pygame.image.load("Materials/menu_background.png").convert()
+skin_menu = pygame.image.load("Materials/choice_skin_background.png").convert()
+setting_menu = pygame.image.load("Materials/setting_choice_background.png").convert()
+mode_screen = pygame.image.load("Materials/choice_mode_background.png").convert()
+choose_mode = pygame.image.load("Materials/choice_quiz_background.png").convert()
+instruction_mode = pygame.image.load("Materials/instruction_background.png")
+gameover_screen = pygame.image.load("Materials/gameover_background.png")
+sign_game = pygame.image.load("Materials/coin.png")
+levels_screen = pygame.image.load("Materials/background_levels.png")
+
+#переменные, необходимые для работы щита
+current_time = pygame.time.get_ticks()
+elapsed_time = current_time - start_time
+start_time = 0
+count_shield_anim = 0
+shield_x = 3
+shield_y = y
+shield = pygame.image.load("Materials/empty_background.png").convert_alpha()
+
+#анимация бега героя
+walk_right = [
+    pygame.image.load('Materials/run_animation_11.png').convert_alpha(),
+    pygame.image.load('Materials/run_animation_12.png').convert_alpha(),
+    pygame.image.load('Materials/run_animation_13.png').convert_alpha(),
+    pygame.image.load('Materials/run_animation_14.png').convert_alpha(),
+    pygame.image.load('Materials/run_animation_15.png').convert_alpha(),
+    pygame.image.load('Materials/run_animation_16.png').convert_alpha(),
+    pygame.image.load('Materials/run_animation_17.png').convert_alpha(),
+    pygame.image.load('Materials/run_animation_18.png').convert_alpha()
+]
+
+#счётчик для смены анимаций
+count_player_anim = 0
+
+#расположение фона
+bg_x = 0
+
+#текущий тип вопроса
+choose_text = "Любые"
+
+#тексты и необходимые параметры
+lable = pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 40)
+g_o_label = lable.render('Вы проиграли!', False, (12, 56, 200))
+font = pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 18)
+text =font.render('Чтобы продолжить, ответьте на вопрос:', 1, (255, 255, 255))
+mode_font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 46)
+text_mode = mode_font.render("Выберите режим", 1, (0, 0, 0))
+font_2 = pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 12)
+describe_1 = font_2.render("(1) Викторина запускается каждые 300 очков", 1, (255, 255, 255))
+describe_2 = font_2.render("(2) Викторина запускается при столкновении", 1, (255, 255, 255))
+q = pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 24)
+text_mode_2 = q.render("Выберите тему вопросов", 1, (255, 255, 255))
+font_for_questions_mode = pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 24)
+instruction = pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 24)
+instruction_render = instruction.render('Экран управления - "ctrl + I"', 1, (255, 255, 255))
+settings_text_font = pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 48)
+settings_text = settings_text_font.render("Настройки", 1, (255, 255, 255))
+pause_font =  pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 29)
+pause_text = pause_font.render('Пауза "ctrl + h"', 1, (0, 0, 0))
+
+
+#чтение рекорда из текстового документа (если такого нет - создаётся новый с рекордом 0)
+if not os.path.isfile('Materials/high_score.txt'):
+    with open('Materials/high_score.txt', 'w') as f:
+        f.write('0')
+try:
+    with open('Materials/high_score.txt', 'r') as f:
+        high_score = f.read()
+        if not high_score:
+            high_score = 0
+        else:
+            high_score = float(high_score)
+except ValueError:
+    pass
+f.close()
+
+if not os.path.isfile('Materials/coins_file.txt'):
+    with open('Materials/coins_file.txt', 'w') as f:
+        f.write('0')
+try:
+    with open('Materials/coins_file.txt', 'r') as f:
+        coins_count = f.read()
+        if not coins_count:
+            coins_count = 0
+        else:
+            coins_count = int(coins_count)
+except ValueError:
+    pass
+f.close()
+
+
+#кнопки
+class Home:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_play.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_play_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 72)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Again:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_play.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_play_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Button:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_play.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_play_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 72)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Button_continue:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_play_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_play.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Main_hero:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/choice_skin_1.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/player_choice_12.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Main_hero_2:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/choice_skin_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/player_choice_22.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Menu:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_play_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_play.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 60)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Button_2:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_play.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_play_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Button_arrow:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/arrow_right.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/arrow_2_right.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Button_arrow_2:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/arrow_left.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/arrow_2_left.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Pause:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/pause.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/pause_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+
+
+class Back:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/arrow_back.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/arrow_back_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Settings:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/settings_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/settings.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Home_1:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/door.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/door_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Back_3:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/arrow_back.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/arrow_back_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Question_his:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_basic_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_history.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 20)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Question_ph:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_basic_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_physics.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 20)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Question_ch:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_basic_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_chemistry.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 20)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Question_ast:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_basic_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_astronomy.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 12)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Question_bio:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_basic_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_biology.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 20)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Mode:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_basic_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_basic.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 50)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Mode_2:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_basic_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_basic.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 24)
+        text_surface = font.render(self.text, True, (255, 255, 255))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Regime_1:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_mode_choice.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_mode_choice_open.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (117, 117, 117))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+class Regime_2:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/button_mode_choice_2.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/button_mode_choice_open_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 48)
+        text_surface = font.render(self.text, True, (117, 117, 117))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+
+class Frame_1:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/frame_easy_1.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/frame_easy_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 24)
+        text_surface = font.render(self.text, True, (61, 250, 57))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+
+class Frame_2:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/frame_medium_1.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/frame_medium_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 24)
+        text_surface = font.render(self.text, True, (255, 148, 26))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+
+class Frame_3:
+    def __init__(self, x, y, width, height, text, image_path, hover_image_path = None):
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.image = pygame.image.load("Materials/frame_hard_1.png").convert_alpha()
+        self.image = pygame.transform.scale(self.image, (width, height))
+        self.hover_image = self.image
+        if hover_image_path:
+            self.hover_image = pygame.image.load("Materials/frame_hard_2.png").convert_alpha()
+            self.hover_image = pygame.transform.scale(self.hover_image, (width, height))
+        self.rect = self.image.get_rect(topleft = (x, y))
+        self.is_hovered = False
+
+    def draw(self, screen):
+        current_image = self.hover_image if self.is_hovered else self.image
+        screen.blit(current_image, self.rect.topleft)
+
+        font = pygame.font.Font("Materials/ofont.ru_Pixeloid Sans.ttf", 24)
+        text_surface = font.render(self.text, True, (255, 10, 10))
+        text_rect = text_surface.get_rect(center = self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def chek_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.is_hovered:
+            pygame.event.post(pygame.event.Event(pygame.USEREVENT, button = self))
+
+#враги
+class Enemy_1(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.image.load("Materials/enemy.png").convert_alpha()
+        self.rect = self.image.get_rect()
+        self.speed = randint(1, 10)
+        self.rect.x = randint(950, 1750)
+        self.rect.y = randint(350, 600)
+    def update(self, *args, **kwargs):
+        if first_level == True:
+           self.rect.x -= 8
+        elif second_level == True:
+           self.rect.x -= 10
+        elif third_level == True:
+           self.rect.x -= 11
+        if self.rect.x < -80:
+            self.kill()
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+class Enemy_2(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.image.load("Materials/sign_enemy.png").convert_alpha()
+        self.rect = self.image.get_rect()
+        self.speed = randint(1, 10)
+        self.rect.x = randint(800, 1600)
+        self.rect.y = randint(400, 500)
+    def update(self, *args, **kwargs):
+        if first_level == True:
+           self.rect.x -= 8
+        elif second_level == True:
+           self.rect.x -= 10
+        elif third_level == True:
+           self.rect.x -= 11
+        if self.rect.x < -80:
+            self.kill()
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+class Enemy_3(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.image.load("Materials/bag_enemy.png").convert_alpha()
+        self.rect = self.image.get_rect()
+        self.speed = randint(1, 10)
+        self.rect.x = randint(1000, 1800)
+        self.rect.y = randint(300, 600)
+    def update(self, *args, **kwargs):
+        if first_level == True:
+           self.rect.x -= 8
+        elif second_level == True:
+           self.rect.x -= 10
+        elif third_level == True:
+           self.rect.x -= 11
+        if self.rect.x < -80:
+            self.kill()
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+class Coins(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.image.load("Materials/coin.png").convert_alpha()
+        self.rect = self.image.get_rect()
+        self.speed = randint(1, 10)
+        self.rect.x = randint(900, 2000)
+        self.rect.y = randint(320, 600)
+    def update(self, *args, **kwargs):
+        if first_level == True:
+           self.rect.x -= 8
+        elif second_level == True:
+           self.rect.x -= 10
+        elif third_level == True:
+           self.rect.x -= 11
+        if self.rect.x < -80:
+            self.kill()
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+
+class Coins_2(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.image.load("Materials/coin.png").convert_alpha()
+        self.rect = self.image.get_rect()
+        self.speed = randint(1, 10)
+        self.rect.x = randint(1200, 1600)
+        self.rect.y = randint(320, 600)
+    def update(self, *args, **kwargs):
+        if first_level == True:
+           self.rect.x -= 8
+        elif second_level == True:
+           self.rect.x -= 10
+        elif third_level == True:
+           self.rect.x -= 11
+        if self.rect.x < -80:
+            self.kill()
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
+#функции для пояления новых врагов
+def make_enemy(enemies, screen):
+    enemies.update()
+    enemies.draw(screen)
+    if first_level == True or second_level == True:
+        if len(enemies) < 1:
+            enemy = Enemy_1()
+            enemies.add(enemy)
+    elif third_level == True:
+        if len(enemies) < 2:
+            enemy = Enemy_1()
+            enemies.add(enemy)
+
+
+def make_enemy_2(enemies_2, screen):
+    enemies_2.update()
+    enemies_2.draw(screen)
+    if first_level == True or second_level == True:
+        if len(enemies_2) < 1:
+            enemy_2 = Enemy_2()
+            enemies_2.add(enemy_2)
+    elif third_level == True:
+        if len(enemies_2) < 2:
+            enemy_2 = Enemy_2()
+            enemies_2.add(enemy_2)
+
+
+def make_enemy_3(enemies_3, screen):
+    enemies_3.update()
+    enemies_3.draw(screen)
+    if first_level == True or second_level == True:
+        if len(enemies_3) < 1:
+            enemy_3 = Enemy_3()
+            enemies_3.add(enemy_3)
+    elif third_level == True:
+        if len(enemies_3) < 2:
+            enemy_3 = Enemy_3()
+            enemies_3.add(enemy_3)
+
+def make_coins(coins_subject, screen):
+    coins_subject.update()
+    coins_subject.draw(screen)
+    if len(coins_subject) < 1:
+        coin = Coins()
+        coins_subject.add(coin)
+
+
+def make_coins_2(coins_subject_2, screen):
+    coins_subject_2.update()
+    coins_subject_2.draw(screen)
+    if len(coins_subject_2) < 1:
+        coin_2 = Coins_2()
+        coins_subject_2.add(coin_2)
+
+
+#функция для преезапуска игры
+def restart_game():
+    x = 20
+    y = 170
+    enemies.empty()
+    enemies_2.empty()
+    enemies_3.empty()
+    coins_subject.empty()
+    score = 0
+
+
+
+
+#переменные для врагов
+enemy_1 = Enemy_1()
+enemies = pygame.sprite.Group()
+
+enemy_2 = Enemy_2()
+enemies_2 = pygame.sprite.Group()
+
+enemy_3 = Enemy_3()
+enemies_3 = pygame.sprite.Group()
+
+coin = Coins()
+coins_subject = pygame.sprite.Group()
+
+coin_2 = Coins_2()
+coins_subject_2 = pygame.sprite.Group()
+
+
+#отрисовка текста
+def draw_text(text, font, color, x, y):
+    surface = font.render(text, True, color)
+    screen.blit(surface, (x, y))
+
+#параметры кнопок
+button_play = Button(120, 210, 550, 150, "ИГРАТЬ", "Materials/button_play.png", "Materials/button_play_2.png")
+button_play_2 = Button_2(120, 450, 550, 150, "ВЫБРАТЬ ГЕРОЯ", "Materials/button_play.png", "Materials/button_play_2.png")
+button_play_arrow = Button_arrow(640, 320, 140, 110, "", "Materials/arrow_right.png", "Materials/arrow_2_right.png")
+button_play_arrow_2 = Button_arrow_2(10, 320, 140, 110, "", "Materials/arrow_left.png", "Materials/arrow_2_left.png")
+pause = Pause(700, 20, 80, 120, "", "Materials/pause.png", "Materials/pause_2.png")
+back = Back(5, 120, 150, 120, "", "Materials/arrow_back.png", "Materials/arrow_back_2.png")
+button_continue = Button_continue(200, 220, 400, 200, "Продолжить", "Materials/button_play_2.png", "Materials/button_play.png")
+menu_button = Menu(200, 420, 400, 200, "Меню", "Materials/button_play_2.png", "Materials/button_play.png")
+hero_1 = Main_hero(270, 160, 230, 520, "", "Materials/choice_skin_1.png", "Materials/player_choice_12.png")
+hero_2 = Main_hero_2(272, 181, 230, 500, "", "Materials/choice_skin_2.png", "Materials/player_choice_22.png")
+button_again = Again(120, 210, 550, 150, "Играть заново", "Materials/button_play.png", "Materials/button_play_2.png")
+home = Home(120, 450, 550, 150, "Меню", "Materials/button_play.png", "Materials/button_play_2.png")
+settings = Settings(725, 5, 65, 65, "", "Materials/settings_2.png", "Materials/settings.png")
+back_2 = Back(5, 5, 80, 70, "", "Materials/arrow_back.png", "Materials/arrow_back_2.png")
+mode = Mode(100, 200, 300, 180, "Режимы", "Materials/button_basic.png", "Materials/button_basic_2.png")
+back_3 = Back_3(5, 5, 60, 50, "", "Materials/arrow_back.png", "Materials/arrow_back_2.png")
+home_1 = Home_1(730, 5, 60, 90, "", "Materials/door.png", "Materials/door_2.png")
+regime_1 = Regime_1(30, 115, 150, 150, "   1", "Materials/button_mode_choice.png", "Materials/button_mode_choice_open.png")
+regime_2 = Regime_2(600, 115, 150, 150, "  2", "Materials/button_mode_choice_2.png", "Materials/button_mode_choice_open_2.png")
+mode_2 = Mode(400, 200, 300, 180, "Вопросы", "Materials/button_basic.png", "Materials/button_basic_2.png")
+mode_3 = Mode_2(100, 400, 300, 180, "Уровень сложности", "Materials/button_basic.png", "Materials/button_basic_2.png")
+back_4 = Back_3(60, 5, 90, 80, "", "Materials/arrow_back.png", "Materials/arrow_back_2.png")
+hist = Question_his(100, 100, 240, 120, "История", "Materials/button_basic_2.png", "Materials/button_history.png")
+phy = Question_ph(480, 100, 240, 120, "Физика", "Materials/button_basic_2.png", "Materials/button_physics.png")
+chem = Question_ch(100, 280, 240, 120, "Химия", "Materials/button_basic_2.png", "Materials/button_chemistry.png")
+bio = Question_bio(480, 280, 240, 120, "Биология", "Materials/button_basic_2.png", "Materials/button_biology.png")
+ast = Question_ast(100, 450, 240, 120, "Астрономия", "Materials/button_basic_2.png", "Materials/button_astronomy.png")
+all = Mode(480, 450, 240, 120, "Любые", "Materials/button_basic.png", "Materials/button_basic_2.png")
+frame_easy = Frame_1(70, 380, 180, 180, "Простой", "Materials/frame_easy_1.png", "Materials/frame_easy_2")
+frame_medium = Frame_2(400, 380, 180, 180, "Средний", "Materials/frame_medium_1.png", "Materials/frame_medium_2")
+frame_hard = Frame_3(300, 50, 180, 180, "Сложный", "Materials/frame_hard_1.png", "Materials/frame_hard_2")
+back_4 = Back(5, 5, 80, 70, "", "Materials/arrow_back.png", "Materials/arrow_back_2.png")
+
+
+#параметры переменных, необходимые для смены экранов, завершения игры, смены типа вопросов и так далее
+shield_condition = False
+questions_screen = False
+instruction_menu = False
+gameplay = False
+game = True
+main_menu = True
+skin = False
+pause_menu = False
+next_screen = False
+gameover = False
+settings_menu = False
+mmode_1 = True
+mmode_2 = False
+mode_choose = False
+choose = False
+chemistry = False
+physics = False
+astro = False
+biology = False
+easy_questions = False
+hard_questions = False
+first_level = False
+second_level = True
+third_level = False
+levels_choose = False
+
+
+#параметры, необходимые для првавильной работы кнопок на сменяющихся экранах (собственные события для каждого экрана)
+MAIN_MENU_EVENT = pygame.USEREVENT + 1
+SKIN_EVENT = pygame.USEREVENT + 2
+GAMEPLAY_EVENT = pygame.USEREVENT + 3
+PAUSE_EVENT = pygame.USEREVENT + 4
+NEXT_SCREEN_EVENT = pygame.USEREVENT +5
+GAMEOVER = pygame.USEREVENT + 6
+SKIN_EVENT_2 = pygame.USEREVENT + 7
+SETTINGS_EVENT = pygame.USEREVENT + 8
+MODE_EVENT = pygame.USEREVENT + 9
+CHOOSE_EVENT = pygame.USEREVENT + 10
+INSTRUCTION_EVENT = pygame.USEREVENT + 11
+LEVELS_EVENT = pygame.USEREVENT + 12
+
+bg_speed = 10
+
+#начало основного цикл игры
+while game:
+
+    #осуществление выхода из игры
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            game = False
+
+    #осуществление выхода из игры во время самой игры
+    if gameplay == True and main_menu == False and skin == False and gameover == False and questions_screen == False:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                game = False
+
+
+
+        #заполнение фоном, который должен будет двигаться
+        screen.blit(d, (bg_x, 0))
+        screen.blit(d1, (bg_x + 800, 0))
+        screen.blit(d2, (bg_x + 1600, 0))
+        screen.blit(d3, (bg_x + 2400, 0))
+
+        screen.blit(sign_game, (5, 63))
+
+        #появление врагов на экране и постоянное их обновление
+        enemy_1.update()
+        enemy_1.draw(screen)
+        enemy_2.update()
+        enemy_2.draw(screen)
+        enemy_3.update()
+        enemy_3.draw(screen)
+        coin.update()
+        coin.draw(screen)
+        make_enemy(enemies, screen)
+        make_enemy_2(enemies_2, screen)
+        make_enemy_3(enemies_3, screen)
+        make_coins(coins_subject, screen)
+        if first_level == True or second_level == True:
+            coin_2.update()
+            coin_2.draw(screen)
+            make_coins_2(coins_subject_2, screen)
+
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_h and pause_menu == False:
+                pause_menu = True
+                gameplay = False
+
+        #появление анимации игрока на экране и значка паузы с проверкой, нажата ли кнопка
+        screen.blit(walk_right[current_frame], (x, y))
+        pause.draw(screen)
+        pause.chek_hover(pygame.mouse.get_pos())
+
+        #при нажатии паузы открывается отдельный экран
+        if event.type == pygame.USEREVENT and event.button == pause:
+            gameplay = False
+            pause_menu = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and pause.is_hovered:
+            pause_menu = True
+            gameplay = False
+            pygame.event.post(pygame.event.Event(PAUSE_EVENT))
+
+
+
+        #осуществление мигания щита перед его исчезновением
+        current_time = pygame.time.get_ticks()
+        elapsed_time = current_time - start_time
+        if first_level == True or second_level == True:
+            if elapsed_time < 50 and timer_running == True and shield_condition == True:
+                shield_x = 3
+                shield_y = y
+                screen.blit(shield, (shield_x, shield_y))
+            elif 2800 > elapsed_time > 50 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif 3100 > elapsed_time > 2800 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif 3400 > elapsed_time > 3100 and timer_running == True and shield_condition == True:
+                shield = empty
+                screen.blit(shield, (shield_x, shield_y))
+            elif 3700 > elapsed_time > 3400 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif 4000 > elapsed_time > 3700 and timer_running == True and shield_condition == True:
+                shield = empty
+                screen.blit(shield, (shield_x, shield_y))
+            elif 4300 > elapsed_time > 4000 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif 4500 > elapsed_time > 4300 and timer_running == True and shield_condition == True:
+                shield = empty
+                screen.blit(shield, (shield_x, shield_y))
+            elif 4600 > elapsed_time > 4500 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif 4700 > elapsed_time > 4600 and timer_running == True and shield_condition == True:
+                shield = empty
+                screen.blit(shield, (shield_x, shield_y))
+            elif 4800 > elapsed_time > 4700 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif 4900 > elapsed_time > 4800 and timer_running == True and shield_condition == True:
+                shield = empty
+                screen.blit(shield, (shield_x, shield_y))
+            elif 5000 > elapsed_time > 4900 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif elapsed_time > 5000 and timer_running == True and shield_condition == True:
+                shield_x = -500
+                shield_y = -500
+
+                #щит исчезает
+                timer_running = False
+                shield_condition = False
+        elif third_level == True:
+            if elapsed_time < 50 and timer_running == True and shield_condition == True:
+                shield_x = 3
+                shield_y = y
+            elif 2000 > elapsed_time > 50 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif 2400 > elapsed_time > 2000 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif 2600 > elapsed_time > 2400 and timer_running == True and shield_condition == True:
+                shield = empty
+                screen.blit(shield, (shield_x, shield_y))
+            elif 2700 > elapsed_time > 2600 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif 2800 > elapsed_time > 2700 and timer_running == True and shield_condition == True:
+                shield = empty
+                screen.blit(shield, (shield_x, shield_y))
+            elif 2900 > elapsed_time > 2800 and timer_running == True and shield_condition == True:
+                shield = shield_col
+                screen.blit(shield, (shield_x, shield_y))
+            elif elapsed_time > 3000 and timer_running == True and shield_condition == True:
+                shield_x = -500
+                shield_y = -500
+
+                # щит исчезает
+                timer_running = False
+                shield_condition = False
+
+
+        #условие, при котором начинается счёт нового рекорда
+        with open('Materials/high_score.txt', 'w') as f:
+            f.write(str(high_score))
+        score += score_increment * 5 / 20
+        if score > high_score:
+            high_score = score
+        #вывод текста с рекордом и его обновление
+        score_text = font.render("Счёт: {}".format(int(score)), True, (0, 0, 0))
+        high_score_text = font.render(f"Рекорд: {high_score}", True, (0, 0, 0))
+        screen.blit(score_text, (10, 10))
+        screen.blit(high_score_text, (10, 40))
+        count_text = font.render(f"{coins_count}", True, (0, 0, 0))
+        screen.blit(count_text, (50, 70))
+        pygame.display.update()
+
+        with open('Materials/coins_file.txt', 'w') as f:
+            f.write(str(coins_count))
+
+
+        #проигрыш или продолжение игры в зависимости от выбранного режима
+        if mmode_1 == True:
+            if score % 300 == 0 and score != 0:
+                gameplay = False
+                questions_screen = True
+        elif mmode_1 == False:
+            if score % 300 == 0 and score != 0:
+                gameplay = True
+                questions_screen = False
+
+        # управление с помощью кнопок
+        k = pygame.key.get_pressed()
+        if k[pygame.K_UP] and y > 170:
+            y -= player_speed
+            shield_y -= player_speed
+        elif k[pygame.K_DOWN] and y < 580:
+            y += player_speed
+            shield_y += player_speed
+
+        current_time = pygame.time.get_ticks()
+
+        # Обновление анимации
+        if current_frame >= 7:
+            current_frame = 0
+        elif current_time - animation_time >= animation_speed:
+            animation_time = current_time
+            current_frame += 1
+
+        # Обновление скорости фона в зависимости от уровня
+        if first_level and not second_level and not third_level:
+            bg_speed = 8
+        elif not first_level and second_level and not third_level:
+            bg_speed = 10
+        elif not first_level and not second_level and third_level:
+            bg_speed = 11
+
+        bg_x -= bg_speed
+        if bg_x <= -2400:
+            bg_x = 0
+
+        #смена анимации бега и движение фона]
+
+        #условие для щита, чтобы избежать лишних багов
+        if y > 580:
+            y = 580
+            shield_y = 580
+
+        #установка хитбокса для проверки на столкновение с врагом
+        player_rect = walk_right[7].get_rect(topleft=(x, y))
+
+        #проверка на столкновение с врагами и дальнейшее событие в зависимости от выбранного режима
+        if enemies:
+            for en in enemies:
+                if shield_condition == True:
+                    pass
+                elif shield_condition == False and player_rect.colliderect(en) and mmode_1 == True and mmode_2 == False:
+                    gameplay = False
+                    gameover = True
+                elif shield_condition == False and player_rect.colliderect(en) and mmode_1 == False and mmode_2 == True:
+                    gameplay = False
+                    questions_screen = True
+        if enemies_2:
+            for enn in enemies_2:
+                if shield_condition == True:
+                    pass
+                elif shield_condition == False and player_rect.colliderect(enn) and mmode_1 == True and mmode_2 == False:
+                    gameplay = False
+                    gameover = True
+                elif shield_condition == False and player_rect.colliderect(enn) and mmode_1 == False and mmode_2 == True:
+                    gameplay = False
+                    questions_screen = True
+        if enemies_3:
+            for en_3 in enemies_3:
+                if shield_condition == True:
+                    pass
+                elif shield_condition == False and player_rect.colliderect(en_3) and mmode_1 == True and mmode_2 == False:
+                    gameplay = False
+                    gameover = True
+                elif shield_condition == False and player_rect.colliderect(en_3) and mmode_1 == False and mmode_2 == True:
+                    gameplay = False
+                    questions_screen = True
+        if coins_subject:
+            for coins_rect in coins_subject:
+                if player_rect.colliderect(coins_rect):
+                    coins_count += 1
+                    coins_subject.empty()
+        if first_level == True or second_level == True:
+            if coins_subject_2:
+                for coins_rect_2 in coins_subject_2:
+                    if player_rect.colliderect(coins_rect_2):
+                        coins_count += 1
+                        coins_subject_2.empty()
+
+
+
+
+        #осуществление прыжка
+        if not jump:
+            if k[pygame.K_SPACE]:
+                jump = True
+        else:
+            if jump_count >= -30:
+                y -= jump_count // 2.5
+                shield_y -= jump_count // 2.5
+                jump_count -= 1
+            else:
+                jump = False
+                jump_count = 30
+
+        #условие при нажатой кнопке паузы
+        if event.type == pygame.USEREVENT and event.button == pause:
+            gameplay = False
+            pause_menu = True
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and pause.is_hovered:
+            gameplay = False
+            pause_menu = True
+
+
+
+    #появление экрана настроек
+    elif settings_menu == True:
+        #отрисовка необходимого фона и кнопок
+        screen.blit(setting_menu, (0, 0))
+        screen.blit(settings_text, (250, 0))
+        back_2.draw(screen)
+        back_2.chek_hover(pygame.mouse.get_pos())
+        mode.draw(screen)
+        mode.chek_hover(pygame.mouse.get_pos())
+        mode_2.draw(screen)
+        mode_2.chek_hover(pygame.mouse.get_pos())
+        mode_3.draw(screen)
+        mode_3.chek_hover(pygame.mouse.get_pos())
+        #проверка на нажатие кнопок и дальнейшие события в зависимости от нажатой кнопки
+        if event.type == pygame.USEREVENT and event.button == back_2:
+            settings_menu = False
+            main_menu = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back_2.is_hovered:
+            settings_menu = False
+            main_menu = True
+            pygame.event.post(pygame.event.Event(MAIN_MENU_EVENT))
+        if event.type == pygame.USEREVENT and event.button == mode:
+            settings_menu = False
+            mode_choose = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and mode.is_hovered:
+            settings_menu = False
+            mode_choose = True
+            pygame.event.post(pygame.event.Event(MODE_EVENT))
+        if event.type == pygame.USEREVENT and event.button == mode_2:
+            settings_menu = False
+            choose = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and mode_2.is_hovered:
+            settings_menu = False
+            choose = True
+            pygame.event.post(pygame.event.Event(LEVELS_EVENT))
+        if event.type == pygame.USEREVENT and event.button == mode_3:
+            settings_menu = False
+            levels_choose = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and mode_3.is_hovered:
+            settings_menu = False
+            levels_choose = True
+            pygame.event.post(pygame.event.Event(LEVELS_EVENT))
+
+    elif levels_choose == True:
+        screen.blit(levels_screen, (0, 0))
+        frame_easy.draw(screen)
+        frame_easy.chek_hover(pygame.mouse.get_pos())
+        frame_medium.draw(screen)
+        frame_medium.chek_hover(pygame.mouse.get_pos())
+        frame_hard.draw(screen)
+        frame_hard.chek_hover(pygame.mouse.get_pos())
+        back_4.draw(screen)
+        back_4.chek_hover(pygame.mouse.get_pos())
+        if event.type == pygame.USEREVENT and event.button == frame_easy:
+            first_level = True
+            second_level = False
+            third_level = False
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and frame_easy.is_hovered:
+            restart_game()
+            first_level = True
+            second_level = False
+            third_level = False
+        if event.type == pygame.USEREVENT and event.button == frame_medium:
+            restart_game()
+            first_level = False
+            second_level = True
+            third_level = False
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and frame_medium.is_hovered:
+            restart_game()
+            first_level = False
+            second_level = True
+            third_level = False
+        if event.type == pygame.USEREVENT and event.button == frame_hard:
+            restart_game()
+            first_level = False
+            second_level = False
+            third_level = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and frame_hard.is_hovered:
+            restart_game()
+            first_level = False
+            second_level = False
+            third_level = True
+        if event.type == pygame.USEREVENT and event.button == back_4:
+            levels_choose = False
+            settings_menu = True
+            pygame.event.post(pygame.event.Event(SETTINGS_EVENT))
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back_4.is_hovered:
+            levels_choose = False
+            settings_menu = True
+            pygame.event.post(pygame.event.Event(SETTINGS_EVENT))
+
+
+    #появление экрана выбора режима
+    elif choose == True:
+        #отрисовка необходимого фона, кнопок и текста
+        screen.blit(choose_mode, (0, 0))
+        screen.blit(text_mode_2, (230, 40))
+        home_1.draw(screen)
+        home_1.chek_hover(pygame.mouse.get_pos())
+        back_4.draw(screen)
+        back_4.chek_hover(pygame.mouse.get_pos())
+        phy.draw(screen)
+        phy.chek_hover(pygame.mouse.get_pos())
+        chem.draw(screen)
+        chem.chek_hover(pygame.mouse.get_pos())
+        ast.draw(screen)
+        ast.chek_hover(pygame.mouse.get_pos())
+        bio.draw(screen)
+        bio.chek_hover(pygame.mouse.get_pos())
+        hist.draw(screen)
+        hist.chek_hover(pygame.mouse.get_pos())
+        all.draw(screen)
+        all.chek_hover(pygame.mouse.get_pos())
+        text_for_q_m = font_for_questions_mode.render(f"Сейчас выбрано: {choose_text}", 1, (255, 255, 255))
+        screen.blit(text_for_q_m, (240, 580))
+        #проверка на нажатие кнопок и дальнейшие события в зависимости от нажатой кнопки
+        if event.type == pygame.USEREVENT and event.button == home_1:
+            settings_menu = False
+            choose = False
+            main_menu = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and home_1.is_hovered:
+            settings_menu = False
+            choose = False
+            main_menu = True
+            pygame.event.post(pygame.event.Event(MAIN_MENU_EVENT))
+        if event.type == pygame.USEREVENT and event.button == back_4:
+            settings_menu = True
+            choose = False
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back_4.is_hovered:
+            settings_menu = True
+            choose = False
+            pygame.event.post(pygame.event.Event(SETTINGS_EVENT))
+        if event.type == pygame.USEREVENT and event.button == hist:
+            quest = False
+            history = True
+            astro = False
+            physics = False
+            chemistry = False
+            biology = False
+            choose_text = "История"
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and hist.is_hovered:
+            quest = False
+            history = True
+            astro = False
+            physics = False
+            chemistry = False
+            biology = False
+            choose_text = "История"
+        if event.type == pygame.USEREVENT and event.button == phy:
+            quest = False
+            history = False
+            astro = False
+            physics = True
+            chemistry = False
+            biology = False
+            choose_text = "Физика"
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and phy.is_hovered:
+            quest = False
+            history = False
+            astro = False
+            physics = True
+            chemistry = False
+            biology = False
+            choose_text = "Физика"
+        if event.type == pygame.USEREVENT and event.button == ast:
+            quest = False
+            history = False
+            astro = True
+            physics = False
+            chemistry = False
+            biology = False
+            choose_text = "Астрономия"
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and ast.is_hovered:
+            quest = False
+            history = False
+            astro = True
+            physics = False
+            chemistry = False
+            biology = False
+            choose_text = "Астрономия"
+        if event.type == pygame.USEREVENT and event.button == all:
+            quest = True
+            history = False
+            astro = False
+            physics = False
+            chemistry = False
+            biology = False
+            choose_text = "Любые"
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and all.is_hovered:
+            quest = True
+            history = False
+            astro = False
+            physics = False
+            chemistry = False
+            biology = False
+            choose_text = "Любые"
+        if event.type == pygame.USEREVENT and event.button == chem:
+            quest = False
+            history = False
+            astro = False
+            physics = False
+            chemistry = True
+            biology = False
+            choose_text = "Химия"
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and chem.is_hovered:
+            quest = False
+            history = False
+            astro = False
+            physics = False
+            chemistry = True
+            biology = False
+            choose_text = "Химия"
+        if event.type == pygame.USEREVENT and event.button == bio:
+            quest = False
+            history = False
+            astro = False
+            physics = False
+            chemistry = False
+            biology = True
+            choose_text = "Биология"
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and bio.is_hovered:
+            quest = False
+            history = False
+            astro = False
+            physics = False
+            chemistry = False
+            biology = True
+            choose_text = "Биология"
+
+    #появление экрана викторины
+    elif questions_screen == True:
+        #условия, в соответствии с которыми игроку задаются вопросы из выбранной им области
+        if quest == True:
+            #чтение текстового документа
+            with open('Materials/questions.txt', 'r', encoding='utf-8') as f:
+                questions = []
+                for line in f:
+                    line = line.strip()
+                    #регулярное выражение
+                    match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                    if match:
+                        question = match.group(1)
+                        answers = match.group(2).split(',')
+                        correct_answer = int(match.group(3)) - 1
+                        questions.append({
+                            'question': question,
+                            'answers': answers,
+                            'correct_answer': correct_answer
+                        })
+            if first_level == True:
+                with open('Materials/easy_questions.txt', 'r', encoding='utf-8') as f:
+                    questions = []
+                    for line in f:
+                        line = line.strip()
+                        match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                        if match:
+                            question = match.group(1)
+                            answers = match.group(2).split(',')
+                            correct_answer = int(match.group(3)) - 1
+                            questions.append({
+                                'question': question,
+                                'answers': answers,
+                                'correct_answer': correct_answer
+                            })
+            elif third_level == True:
+                with open('Materials/hard_questions.txt', 'r', encoding='utf-8') as f:
+                    questions = []
+                    for line in f:
+                        line = line.strip()
+                        match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                        if match:
+                            question = match.group(1)
+                            answers = match.group(2).split(',')
+                            correct_answer = int(match.group(3)) - 1
+                            questions.append({
+                                'question': question,
+                                'answers': answers,
+                                'correct_answer': correct_answer
+                            })
+        elif history == True:
+            with open('Materials/history.txt', 'r', encoding='utf-8') as f:
+                questions = []
+                for line in f:
+                    line = line.strip()
+                    match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                    if match:
+                        question = match.group(1)
+                        answers = match.group(2).split(',')
+                        correct_answer = int(match.group(3)) - 1
+                        questions.append({
+                            'question': question,
+                            'answers': answers,
+                            'correct_answer': correct_answer
+                        })
+        elif physics == True:
+            with open('Materials/physics.txt', 'r', encoding='utf-8') as f:
+                questions = []
+                for line in f:
+                    line = line.strip()
+                    match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                    if match:
+                        question = match.group(1)
+                        answers = match.group(2).split(',')
+                        correct_answer = int(match.group(3)) - 1
+                        questions.append({
+                            'question': question,
+                            'answers': answers,
+                            'correct_answer': correct_answer
+                        })
+        elif astro == True:
+            with open('Materials/astronomy.txt', 'r', encoding='utf-8') as f:
+                questions = []
+                for line in f:
+                    line = line.strip()
+                    match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                    if match:
+                        question = match.group(1)
+                        answers = match.group(2).split(',')
+                        correct_answer = int(match.group(3)) - 1
+                        questions.append({
+                            'question': question,
+                            'answers': answers,
+                            'correct_answer': correct_answer
+                        })
+        elif biology == True:
+            with open('Materials/biology.txt', 'r', encoding='utf-8') as f:
+                questions = []
+                for line in f:
+                    line = line.strip()
+                    match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                    if match:
+                        question = match.group(1)
+                        answers = match.group(2).split(',')
+                        correct_answer = int(match.group(3)) - 1
+                        questions.append({
+                            'question': question,
+                            'answers': answers,
+                            'correct_answer': correct_answer
+                        })
+        elif chemistry == True:
+            with open('Materials/chemistry.txt', 'r', encoding='utf-8') as f:
+                questions = []
+                for line in f:
+                    line = line.strip()
+                    match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                    if match:
+                        question = match.group(1)
+                        answers = match.group(2).split(',')
+                        correct_answer = int(match.group(3)) - 1
+                        questions.append({
+                            'question': question,
+                            'answers': answers,
+                            'correct_answer': correct_answer
+                        })
+
+        #появление экрана викторины и соответствующего текста
+        screen.blit(quiz_screen, (0, 0))
+        screen.blit(text,(310, 200))
+
+        #выбор случайного вопроса из списка
+        if current_question is None:
+            current_question = random.choice(questions)
+
+        #вывод вопроса
+        draw_text(str(current_question['question']), pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 20),
+          (255, 255, 255), 320, 220)
+
+        #вывод вариантов ответов
+        for i, answer in enumerate(current_question["answers"]):
+            draw_text(f"{i + 1}. {answer}", pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 20),(255, 255, 255), 320, 270 + i * 60)
+
+
+
+        #проверка, правильно ли ответил игрок
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                game = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1:
+                    if current_question["correct_answer"] == 1 and event.key == pygame.K_1:
+                        #правильного ответа на вопрос игра продолжается, появляется щит, вопрос стирается
+                        start_time = pygame.time.get_ticks()
+                        timer_running = True
+                        questions_screen = False
+                        gameplay = True
+                        shield_x = 3
+                        shield_y = y
+                        screen.blit(shield, (shield_x, shield_y))
+                        current_question = None
+                        shield_condition = True
+                    elif current_question["correct_answer"] != 1:
+                        questions_screen = False
+                        gameover = True
+                        current_question = None
+                elif event.key == pygame.K_2:
+                    if current_question["correct_answer"] == 2 and event.key == pygame.K_2:
+                        start_time = pygame.time.get_ticks()
+                        timer_running = True
+                        questions_screen = False
+                        gameplay = True
+                        shield_x = 3
+                        shield_y = y
+                        screen.blit(shield, (shield_x, shield_y))
+                        current_question = None
+                        shield_condition = True
+                    elif current_question["correct_answer"] != 2:
+                        questions_screen = False
+                        gameover = True
+                        current_question = None
+                elif event.key == pygame.K_3:
+                    if current_question["correct_answer"] == 3 and event.key == pygame.K_3:
+                        start_time = pygame.time.get_ticks()
+                        timer_running = True
+                        questions_screen = False
+                        gameplay = True
+                        shield_x = 3
+                        shield_y = y
+                        screen.blit(shield, (shield_x, shield_y))
+                        current_question = None
+                        shield_condition = True
+                    elif current_question["correct_answer"] != 3:
+                        questions_screen = False
+                        gameover = True
+                        current_question = None
+
+            #условие для работы щита
+            if timer_running:
+                current_time = pygame.time.get_ticks()
+                elapsed_time = current_time - start_time
+                if elapsed_time < 5000:
+                    screen.blit(shield, (shield_x, shield_y))
+                else:
+                    timer_running = False
+            #заполнение списка зановое в том случае, если вопросы закончились
+            if questions == []:
+                if quest == True:
+                    with open('Materials/questions.txt', 'r', encoding='utf-8') as f:
+                        questions = []
+                        for line in f:
+                            line = line.strip()
+                            match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                            if match:
+                                question = match.group(1)
+                                answers = match.group(2).split(',')
+                                correct_answer = int(match.group(3)) - 1
+                                questions.append({
+                                    'question': question,
+                                    'answers': answers,
+                                    'correct_answer': correct_answer
+                                })
+                elif history == True:
+                    with open('Materials/history.txt', 'r', encoding='utf-8') as f:
+                        questions = []
+                        for line in f:
+                            line = line.strip()
+                            match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                            if match:
+                                question = match.group(1)
+                                answers = match.group(2).split(',')
+                                correct_answer = int(match.group(3)) - 1
+                                questions.append({
+                                    'question': question,
+                                    'answers': answers,
+                                    'correct_answer': correct_answer
+                                })
+                elif physics == True:
+                    with open('Materials/physics.txt', 'r', encoding='utf-8') as f:
+                        questions = []
+                        for line in f:
+                            line = line.strip()
+                            match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                            if match:
+                                question = match.group(1)
+                                answers = match.group(2).split(',')
+                                correct_answer = int(match.group(3)) - 1
+                                questions.append({
+                                    'question': question,
+                                    'answers': answers,
+                                    'correct_answer': correct_answer
+                                })
+                elif astro == True:
+                    with open('Materials/astronomy.txt', 'r', encoding='utf-8') as f:
+                        questions = []
+                        for line in f:
+                            line = line.strip()
+                            match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                            if match:
+                                question = match.group(1)
+                                answers = match.group(2).split(',')
+                                correct_answer = int(match.group(3)) - 1
+                                questions.append({
+                                    'question': question,
+                                    'answers': answers,
+                                    'correct_answer': correct_answer
+                                })
+                elif biology == True:
+                    with open('Materials/biology.txt', 'r', encoding='utf-8') as f:
+                        questions = []
+                        for line in f:
+                            line = line.strip()
+                            match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                            if match:
+                                question = match.group(1)
+                                answers = match.group(2).split(',')
+                                correct_answer = int(match.group(3)) - 1
+                                questions.append({
+                                    'question': question,
+                                    'answers': answers,
+                                    'correct_answer': correct_answer
+                                })
+                elif chemistry == True:
+                    with open('Materials/chemistry.txt', 'r', encoding='utf-8') as f:
+                        questions = []
+                        for line in f:
+                            line = line.strip()
+                            match = re.match(r'^(.*?)\t(.*?)\t(.*?)$', line)
+                            if match:
+                                question = match.group(1)
+                                answers = match.group(2).split(',')
+                                correct_answer = int(match.group(3)) - 1
+                                questions.append({
+                                    'question': question,
+                                    'answers': answers,
+                                    'correct_answer': correct_answer
+                                })
+
+
+
+    #появление экрана проигрыша
+    elif gameover == True:
+        #отрисовка необходимого текста, фона и кнопок
+        g_font = pygame.font.Font('Materials/ofont.ru_Pixeloid Sans.ttf', 48)
+        g_text = g_font.render("Вы проиграли", 1, (255, 255, 255))
+        gameplay = False
+        screen.blit(gameover_screen, (0, 0))
+        screen.blit(g_text, (200,370))
+        button_again.chek_hover(pygame.mouse.get_pos())
+        button_again.draw(screen)
+        home.chek_hover(pygame.mouse.get_pos())
+        home.draw(screen)
+        #проверка на нажатие кнопок и дальнейшие события в зависимости от нажатой кнопки
+        if event.type == pygame.USEREVENT and event.button == button_again:
+            gameover = False
+            restart_game()
+            gameplay = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and button_again.is_hovered:
+            gameover = False
+            score = 0
+            restart_game()
+            gameplay = True
+        if event.type == pygame.USEREVENT and event.button == button_again and mmode_2 == True:
+            gameover = False
+            restart_game()
+            gameplay = True
+            questions_screen = False
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and button_again.is_hovered and mmode_2 == True:
+            gameover = False
+            score = 0
+            restart_game()
+            gameplay = True
+            questions_screen = False
+        if event.type == pygame.USEREVENT and event.button == home:
+            gameover = False
+            restart_game()
+            gameplay = False
+            main_menu = True
+            pygame.event.post(pygame.event.Event(GAMEOVER))
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and home.is_hovered:
+            gameover = False
+            score = 0
+            restart_game()
+            gameplay = False
+            main_menu = True
+            pygame.event.post(pygame.event.Event(GAMEOVER))
+
+    elif instruction_menu == True:
+        screen.blit(instruction_mode, (0, 0))
+        screen.blit(pause_text, (80, 500))
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_e:
+                instruction_menu = False
+                main_menu = True
+
+
+    #появление главного экрана
+    elif main_menu == True:
+            # запуск экрана управления
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_i and instruction_menu == False:
+                instruction_menu = True
+                questions_screen = False
+                gameplay = False
+                main_menu = False
+                skin = False
+                pause_menu = False
+                next_screen = False
+                gameover = False
+                settings_menu = False
+                mode_choose = False
+                choose = False
+        #отрисовка необходимого текста, фона и кнопок
+        text_score = font.render(f'Ваш рекорд: {high_score}', 1, (255, 255, 255))
+        text_coins = font.render(f'{coins_count}', 1, (255, 255, 255))
+        score = 0
+        screen.blit(menu, (0, 0))
+        screen.blit(text_score, (100, 390))
+        screen.blit(text_coins, (620, 390))
+        screen.blit(instruction_render, (210, 620))
+        button_play.draw(screen)
+        button_play.chek_hover(pygame.mouse.get_pos())
+        button_play_2.draw(screen)
+        button_play_2.chek_hover(pygame.mouse.get_pos())
+        settings.draw(screen)
+        settings.chek_hover(pygame.mouse.get_pos())
+        #проверка на нажатие кнопок и дальнейшие события в зависимости от нажатой кнопки
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and button_play.is_hovered and skin == False:
+            gameplay = True
+            main_menu = False
+            pygame.event.post(pygame.event.Event(GAMEPLAY_EVENT))
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and button_play_2.is_hovered and skin == False:
+            gameplay = False
+            skin = True
+            main_menu = False
+            pygame.event.post(pygame.event.Event(SKIN_EVENT))
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and settings.is_hovered and skin == False:
+            gameplay = False
+            main_menu = False
+            settings_menu = True
+            pygame.event.post(pygame.event.Event(SETTINGS_EVENT))
+
+    #появление экрана выбора героя
+    elif skin == True:
+        #отрисовка необходимого текста, фона и кнопок
+        screen.blit(skin_menu, (0, 0))
+        button_play_arrow.draw(screen)
+        button_play_arrow.chek_hover(pygame.mouse.get_pos())
+        back.draw(screen)
+        back.chek_hover(pygame.mouse.get_pos())
+        hero_1.chek_hover(pygame.mouse.get_pos())
+        hero_1.draw(screen)
+        #проверка на нажатие кнопок и дальнейшие события в зависимости от нажатой кнопки
+        if event.type == pygame.USEREVENT and event.button == hero_1:
+            walk_right = [
+                pygame.image.load('Materials/run_animation_11.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_12.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_13.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_14.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_15.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_16.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_17.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_18.png').convert_alpha()
+            ]
+            quiz_screen = pygame.image.load("Materials/quiz_background_1.png").convert()
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and hero_1 .is_hovered:
+            walk_right = [
+                pygame.image.load('Materials/run_animation_11.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_12.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_13.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_14.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_15.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_16.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_17.png').convert_alpha(),
+                pygame.image.load('Materials/run_animation_18.png').convert_alpha()
+            ]
+
+            quiz_screen = pygame.image.load("Materials/quiz_background_1.png").convert()
+        if event.type == pygame.USEREVENT and event.button == button_play_arrow:
+            next_screen = True
+            skin = False
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and button_play_arrow.is_hovered:
+            skin = False
+            next_screen = True
+            pygame.event.post(pygame.event.Event(NEXT_SCREEN_EVENT))
+        if event.type == pygame.USEREVENT and event.button == back:
+            skin = False
+            main_menu = True
+            settings = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back.is_hovered:
+            skin = False
+            main_menu = True
+            pygame.event.post(pygame.event.Event(MAIN_MENU_EVENT))
+
+    #появление экрана выбора режима
+    elif mode_choose == True:
+        #отрисовка необходимого текста, фона и кнопок
+        screen.blit(mode_screen, (0, 0))
+        screen.blit(text_mode, (185, 40))
+        home_1.draw(screen)
+        back_3.draw(screen)
+        home_1.chek_hover(pygame.mouse.get_pos())
+        back_3.chek_hover(pygame.mouse.get_pos())
+        regime_1.draw(screen)
+        regime_1.chek_hover(pygame.mouse.get_pos())
+        screen.blit(describe_1, (180, 140))
+        regime_2.draw(screen)
+        regime_2.chek_hover(pygame.mouse.get_pos())
+        screen.blit(describe_2, (280, 155))
+        #проверка на нажатие кнопок и дальнейшие события в зависимости от нажатой кнопки
+        if event.type == pygame.USEREVENT and event.button == back_3:
+            settings_menu = True
+            mode_choose = False
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back_3.is_hovered:
+            settings_menu = True
+            mode_choose = False
+            pygame.event.post(pygame.event.Event(SETTINGS_EVENT))
+        if event.type == pygame.USEREVENT and event.button == home_1:
+            settings_menu = False
+            mode_choose = False
+            main_menu = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and home_1.is_hovered:
+            settings_menu = False
+            mode_choose = False
+            main_menu = True
+            pygame.event.post(pygame.event.Event(MAIN_MENU_EVENT))
+        if event.type == pygame.USEREVENT and event.button == regime_1:
+            mode_choose = True
+            mmode_2 = False
+            mmode_1 = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and regime_1.is_hovered:
+            mode_choose = True
+            mmode_2 = False
+            mmode_1 = True
+            pygame.event.post(pygame.event.Event(MODE_EVENT))
+        if event.type == pygame.USEREVENT and event.button == regime_2:
+            mode_choose = True
+            mmode_1 = False
+            mmode_2 = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and regime_2.is_hovered:
+            mode_choose = True
+            mmode_1 = False
+            mmode_2 = True
+            pygame.event.post(pygame.event.Event(MODE_EVENT))
+
+    #появление следующего экрана выбора героя
+    elif next_screen == True:
+        #отрисовка необходимого текста, фона и кнопок
+        screen.blit(skin_menu, (0, 0))
+        back.draw(screen)
+        back.chek_hover(pygame.mouse.get_pos())
+        button_play_arrow_2.chek_hover(pygame.mouse.get_pos())
+        button_play_arrow_2.draw(screen)
+        hero_2.chek_hover(pygame.mouse.get_pos())
+        hero_2.draw(screen)
+        #проверка на нажатие кнопок и дальнейшие события в зависимости от нажатой кнопки
+        if event.type == pygame.USEREVENT and event.button == back:
+            next_screen = False
+            main_menu = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back.is_hovered:
+            next_screen = False
+            main_menu = True
+            pygame.event.post(pygame.event.Event(MAIN_MENU_EVENT))
+        if event.type == pygame.USEREVENT and event.button == button_play_arrow_2:
+            next_screen = False
+            skin = True
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and button_play_arrow_2.is_hovered:
+            next_screen = False
+            skin = True
+            pygame.event.post(pygame.event.Event(SKIN_EVENT))
+        if event.type == pygame.USEREVENT and event.button == hero_2:
+            quiz_screen = pygame.image.load("Materials/quiz_background_2.png").convert()
+            walk_right = [
+                pygame.image.load("Materials/run_animation_21.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_22.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_23.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_24.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_25.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_26.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_27.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_28.png").convert_alpha()
+            ]
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and hero_2.is_hovered:
+            quiz_screen = pygame.image.load("Materials/quiz_background_2.png").convert()
+            walk_right = [
+                pygame.image.load("Materials/run_animation_21.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_22.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_23.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_24.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_25.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_26.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_27.png").convert_alpha(),
+                pygame.image.load("Materials/run_animation_28.png").convert_alpha()
+            ]
+            pygame.event.post(pygame.event.Event(SKIN_EVENT_2))
+
+    #появление экрана паузы
+    elif pause_menu == True:
+        #отрисовка необходимого текста, фона и кнопок
+        screen.blit(pause_screen, (50, 50))
+        button_continue.chek_hover(pygame.mouse.get_pos())
+        button_continue.draw(screen)
+        menu_button.chek_hover(pygame.mouse.get_pos())
+        menu_button.draw(screen)
+        #проверка на нажатие кнопок и дальнейшие события в зависимости от нажатой кнопки
+        if event.type == pygame.USEREVENT and event.button == menu_button:
+            gameplay = False
+            pause_menu = False
+            main_menu = True
+            score = 0
+            restart_game()
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and menu_button.is_hovered:
+            gameplay = False
+            pause_menu = False
+            main_menu = True
+            score = 0
+            restart_game()
+            pygame.event.post(pygame.event.Event(MAIN_MENU_EVENT))
+        if event.type == pygame.USEREVENT and event.button == button_continue:
+            gameplay = True
+            pause_menu = False
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and button_continue.is_hovered:
+            gameplay = True
+            pause_menu = False
+            pygame.event.post(pygame.event.Event(GAMEPLAY_EVENT))
+
+    pygame.time.Clock().tick(120)
+
+#окончание основного цикла игры
+    pygame.display.update()
+pygame.quit()
+
